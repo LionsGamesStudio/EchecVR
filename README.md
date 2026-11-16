@@ -1,164 +1,73 @@
-# VR Chess Project Roadmap
+# VR Chess
 
-This document outlines a complete, step-by-step roadmap for developing a feature-rich VR chess game in Unity. The goal is to build a high-quality experience with a powerful, from-scratch chess engine, intuitive VR interactions, a challenging AI opponent, and networked multiplayer capabilities using Unity's native tools.
+[Version française](README.fr.md)
 
-## 1. Core Architectural Principles
+A chess game in virtual reality. You grab the pieces with the controllers, set them down on the board, and play against a friend who has their own headset. The club builds it for its new members. The game matters, but the real goal is to learn by building it.
 
--   **Logical Engine/View Separation:** While all scripts will live inside the Unity project, we will maintain a strict logical separation.
-    1.  **Engine Layer:** Pure C# classes and logic for rules, move generation, and AI. These scripts will be organized in a dedicated folder and namespace (`Chess.Engine`) and will **not** reference `UnityEngine`. This makes the logic portable and easily testable.
-    2.  **View Layer:** `MonoBehaviour` scripts that handle VR interaction, visual representation, and user interface. They will live in a separate folder (`Chess.View`) and will communicate with the Engine layer.
--   **VR-First Design:** Interactions will be designed from the ground up for VR controllers, focusing on intuitive grabbing, moving, and placing of pieces.
--   **Performance-Oriented Engine:** The Engine layer will use **Bitboards** for board representation and move generation, ensuring the performance required for a strong AI.
+## Why this project
 
-## 2. Technology Stack
+Everyone knows the rules of chess, so we can focus on the code. Along the way you run into object-oriented programming (inheritance for the pieces, for example: a base class, then the pawn, the rook, the knight...), the single responsibility principle, how C# works inside Unity, testing, and the basics of networking.
 
--   **Game Engine:** Unity 2022.x or later
--   **VR SDK:** Unity's **OpenXR Plugin** (for broad compatibility with Oculus, SteamVR, etc.)
--   **Networking:** Unity's **Netcode for GameObjects** (the modern, officially supported solution)
--   **Language:** C#
--   **Testing:** Unity Test Framework
+We don't try to optimize everything. A faster engine that is harder to explain doesn't help us here. Between clever code and code you can understand by reading it, we pick the second.
 
----
+## What the game does
 
-## 3. The Development Roadmap
+All the rules are there: castling, en passant, promotion, checkmate, stalemate. In VR, you grab a piece, the squares it can reach light up, and you drop it where you want. If the move isn't valid, the piece goes back where it was.
 
-### Milestone 0: Foundation & Project Setup (1-2 Days)
+To play together, one player creates a room and the other joins it. At first, everything runs on the same local network. Each player has their own headset, so nobody has to hand theirs over.
 
-*Goal: Create a clean, well-structured Unity project ready for development.*
+## How it's built
 
-1.  **Unity Project Creation & Configuration:**
-    -   [ ] Create a new 3D URP (Universal Render Pipeline) Unity Project. URP is optimized for VR performance.
-    -   [ ] Switch the build platform to **PC, Mac & Linux Standalone**.
-    -   [ ] From the Package Manager, install the following packages:
-        -   **OpenXR Plugin**
-        -   **Netcode for GameObjects**
-2.  **Project Folder & Namespace Structure:**
-    -   [ ] In the `Assets` folder, create a `_Project` folder to hold all your work.
-    -   [ ] Inside `_Project`, create a `Scripts` folder.
-    -   [ ] Inside `Scripts`, create the core logical folders:
-        -   `Engine`: For all pure C# chess logic (rules, bitboards, AI).
-        -   `View`: For all `MonoBehaviour` scripts that interact with the game world (VR input, piece movement).
-        -   `Multiplayer`: For scripts specifically handling network logic.
-3.  **Initial VR Scene:**
-    -   [ ] Create a new scene named `GameTable`.
-    -   [ ] Set up a basic VR rig (**XR Origin**) with camera and hand controllers.
-    -   [ ] Configure OpenXR for your target devices (e.g., Oculus Touch, Index Controllers).
-    -   [ ] Model or import a simple environment (a room, a table) and a chessboard model.
-    -   [ ] Implement basic **Teleportation** movement to allow the player to move around the table.
+The code is split into layers that don't mix. The basic idea fits in one sentence: VR proposes a move, the game controller decides, the view shows the result.
 
-### Milestone 1: The Core Chess Engine (5-7 Days)
+The Engine holds the rules of chess, in plain C#. It knows nothing about Unity, so you can test it without a headset. The Game layer holds the game controller, which checks a move, applies it and tells everyone. It doesn't know Unity either. On the Unity side, the View handles what you see (board, pieces, highlights, messages), VRInput turns VR gestures into a move to play, and Multiplayer takes care of the room and sends the moves around.
 
-*Goal: A fully functional, non-visual chess engine that understands all the rules of chess. **All work in this milestone is done within the `Scripts/Engine` folder and should use the `Chess.Engine` namespace.**.*
+On the network, only the moves travel. Each player keeps their own pieces on their own machine, and the host stays the referee: it validates every move before the other player sees it.
 
-1.  **Data Structures:**
-    -   [ ] Create `Enums` for `PieceType` (Pawn, Rook, etc.) and `PlayerColor` (White, Black).
-    -   [ ] Define a `Move` struct to represent a move (containing `from` square, `to` square, and special flags like promotion type).
-2.  **Bitboard Representation:**
-    -   [ ] Create a `BoardState` class to hold an array of `ulong` (64-bit integers) representing the 12 piece bitboards (e.g., `WhitePawns`, `BlackRooks`).
-    -   [ ] Implement a function to initialize the bitboards to the standard starting chess position using a FEN string.
-3.  **Move Generation:**
-    -   [ ] Create a `MoveGenerator` class.
-    -   [ ] Implement pseudo-legal move generation for each piece type using bitwise operations, starting with King/Knight and moving to sliding pieces (**"Magic Bitboards"** are the goal for high performance).
-    -   [ ] Add generation for special moves: castling, en-passant capture, and pawn promotions.
-4.  **Game Logic & State Management:**
-    -   [ ] Create a `GameState` class that holds a `BoardState` and metadata (current player, castling rights, en-passant square, etc.).
-    -   [ ] Implement a `MakeMove(Move move)` function that takes a `GameState` and a `Move`, and returns a *new* `GameState` with the move applied. This immutability is key for AI.
-    -   [ ] Implement `GenerateLegalMoves()`. This function will call the pseudo-legal generator, then filter out any moves that would leave the king in check.
-5.  **Unit Testing:**
-    -   [ ] Use the Unity Test Framework to create "Edit Mode" tests.
-    -   [ ] Write tests to validate your move generator against known positions (**Perft testing**). This is critical for ensuring your engine is bug-free.
+(It will be reviewed, not the final structure but the idea of it)
+```
+Assets/
+└── _Project/
+    └── Scripts/
+        ├── Engine/        # chess rules, plain C#
+        ├── Game/          # game controller, players, results, plain C#
+        ├── View/          # board, pieces, highlights, messages
+        ├── VRInput/       # VR gestures turned into moves
+        └── Multiplayer/   # room and network code
+```
 
-### Milestone 2: VR Visualization & Basic Interaction (3-4 Days)
+Each folder has its own namespace (`Chess.Engine`, `Chess.Game`, and so on). The rule to remember: nothing in `Engine` or `Game` may reference `UnityEngine`.
 
-*Goal: See the chessboard in VR and be able to pick up and drop pieces.*
+## Tech
 
-1.  **The Engine-Unity Bridge (`GameManager.cs`):**
-    -   [ ] Create a `GameManager.cs` script in `Scripts/View` and attach it to a `GameObject`.
-    -   [ ] This script will hold the current game state: `private GameState currentGameState;`.
-    -   [ ] Write a function `SyncViewFromState()` that iterates through the engine's bitboards and instantiates/moves piece prefabs to their correct positions.
-2.  **Piece Prefabs & Scripting:**
-    -   [ ] Create a prefab for each chess piece (e.g., `White_Pawn_Prefab`).
-    -   [ ] Add an `XR Grab Interactable` component to each prefab to make them grabbable.
-    -   [ ] Add a simple script, `ChessPieceView.cs`, that holds its piece type and color.
-3.  **Board Interaction:**
-    -   [ ] Add colliders to each square on the chessboard.
-    -   [ ] Write a script that can identify which square a piece is hovered over or dropped on.
-    -   [ ] When a piece is picked up, store its starting square. When it is dropped, determine its destination square.
+Unity (2022 LTS or newer) with the URP pipeline. OpenXR and the XR Interaction Toolkit for VR, Netcode for GameObjects for multiplayer, C# everywhere, and the Unity Test Framework for tests.
 
-### Milestone 3: Implementing the Game Loop (2-3 Days)
+## Getting started
 
-*Goal: A fully playable "hot seat" game for two players in VR.*
+You need Unity Hub, Git, and the Unity version listed in `ProjectSettings/ProjectVersion.txt`. A headset that supports OpenXR is handy but not required: an XR simulator lets you test without one. To try multiplayer, two devices on the same local network are enough, or two Unity instances on the same machine.
 
-1.  **Turn Management:**
-    -   [ ] The `GameManager` will now enforce turn order based on `currentGameState.CurrentPlayer`.
-    -   [ ] Only allow pieces of the current player's color to be picked up.
-2.  **Move Validation & Execution:**
-    -   [ ] When a player drops a piece, construct a `Move` object.
-    -   [ ] Ask the engine if this move is legal by checking against the list from `GenerateLegalMoves()`.
-    -   [ ] If the move is legal:
-        1.  Call the engine: `currentGameState = currentGameState.MakeMove(playerMove);`.
-        2.  Call `SyncViewFromState()` to update the visual board.
-    -   [ ] If the move is illegal, snap the piece back to its original square using a smooth animation.
-3.  **Game End Conditions & Feedback:**
-    -   [ ] After each move, check the engine for checkmate or stalemate conditions.
-    -   [ ] Display a clear UI message in VR to announce the game's outcome.
-    -   [ ] Add a visual highlight to legal destination squares when a piece is picked up.
+```bash
+git clone <REPOSITORY-URL>
+```
 
-### Milestone 4: The AI Opponent (4-5 Days)
+Open the project with Unity Hub and let Unity import the packages. Then open the `GameTable` scene and press Play. Setup notes for your own headset still need to be added here.
 
-*Goal: Create a challenging single-player experience.*
+## Ideas for later
 
-1.  **Evaluation Function (in `Scripts/Engine`):**
-    -   [ ] Create an `Evaluator` class with a static `Evaluate(GameState state)` function.
-    -   [ ] Start with a material count evaluation, then add **Piece-Square Tables** for positional awareness.
-2.  **Search Algorithm (in `Scripts/Engine`):**
-    -   [ ] Implement the **NegaMax with Alpha-Beta Pruning** search algorithm.
-    -   [ ] Add **Transposition Tables** (using a dictionary) to cache evaluations and avoid re-calculating the same positions.
-3.  **Asynchronous Integration (in `Scripts/View`):**
-    -   [ ] In `GameManager`, when it's the AI's turn, call its `FindBestMove` function.
-    -   [ ] **Crucially**, run this search on a background thread using `async/await Task.Run()`. This prevents the VR application from freezing.
-    -   [ ] While the AI is "thinking," display a visual indicator to the player.
-    -   [ ] When the background task completes, execute the returned move on the main thread and update the view.
+None of this is planned from the start. We get to it if there's time and the rest holds up. Since the logic is separate from the display, most of these ideas only touch the View.
 
-### Milestone 5: Networked Multiplayer (5-7 Days)
+Life-size chess, with giant pieces: you walk around a board at human scale. Scale, movement and the way you grab a piece all have to be rethought.
 
-*Goal: Allow two players to compete remotely using Unity Netcode.*
+XR Hands: playing with your hands instead of the controllers, pinching your fingers to pick up a piece. It depends on the headset.
 
-1.  **Network Setup:**
-    -   [ ] Create a new `Menu` scene for matchmaking.
-    -   [ ] Add the `NetworkManager` component to a `GameObject` in your `GameTable` scene. Configure its Network Prefabs list with all your chess piece prefabs.
-    -   [ ] Create a simple UI in the `Menu` scene with "Host" and "Join" buttons.
-2.  **Authoritative Game State:**
-    -   [ ] The game will use a **Host-Client** model. The player who starts the game (the Host) will have the authoritative version of the `GameState`.
-    -   [ ] The `GameManager` script will now need logic to differentiate between Host and Client.
-3.  **Move Synchronization:**
-    -   [ ] When a player makes a move, the process will be:
-        1.  The client's `GameManager` validates the input locally (is it their turn? is the piece theirs?).
-        2.  The client sends the intended `Move` data to the Host using a `[ServerRpc]`.
-        3.  The Host receives the `ServerRpc`, runs the move through its **authoritative** engine instance for full validation (`GenerateLegalMoves`).
-        4.  If the move is valid, the Host updates its `GameState` and then broadcasts the successful move to *all* clients (including itself) using a `[ClientRpc]`.
-        5.  All clients receive the `ClientRpc`, apply the now-confirmed move to their local engine instance, and call `SyncViewFromState()` to update their board visually.
-4.  **Networked Object Spawning:**
-    -   [ ] The Host will be responsible for spawning the initial set of chess pieces as networked objects at the start of the game.
+Mixed reality: you place a board on a real table and the headset simulates the pieces on top of it. Again, everything depends on what the headset can do.
 
-### Milestone 6: Polishing & Final Features (4-6 Days)
+Seeing your opponent play live: their hand grabs a piece and it comes off its square. This goes through a networked avatar (head and hands), not through the pieces themselves. If they let go on an invalid move, the piece goes back to its place.
 
-*Goal: Transform the functional prototype into a polished, complete game.*
+An AI opponent, to play alone. Later still, online play outside the local network, with a matchmaking service such as Unity Relay and Lobby. If the room sits behind a clean interface, only the way you create and find it changes.
 
-1.  **UI/UX:**
-    -   [ ] Create beautiful 3D menus that are easy to interact with in VR.
-    -   [ ] Add a "Captured Pieces" area on the side of the board.
-    -   [ ] Implement a move history display.
-2.  **VR Comfort & Environment:**
-    -   [ ] Offer different environments (a library, a park, a sci-fi room).
-    -   [ ] Allow the player to resize the board or change their viewing angle.
-    -   [ ] Add simple VR hand avatars to represent the player's hands. For multiplayer, synchronize the remote player's hand and head positions.
-3.  **Advanced Game Features:**
-    -   [ ] Implement game timers (Blitz, Rapid), synchronized over the network.
-    -   [ ] Add an "undo move" feature for single-player games.
-    -   [ ] Implement a "New Game" and "Resign" flow, both for single-player and multiplayer.
-4.  **Sound Design & Haptics:**
-    -   [ ] Add ambient background music and refined sound effects.
-    -   [ ] Implement controller haptics for grabbing, dropping, and captures to make interactions feel physical.
-5.  **Optimization:**
-    -   [ ] Profile the application using the Unity Profiler to ensure it maintains a high and stable frame rate (90+ FPS is the goal for VR).
+And the smaller things: clocks, captured pieces, move history, a few different environments, rematch, resign, controller sounds and vibrations.
+
+## Contributing
+
+Anyone can contribute, whatever their level. A few habits to keep: respect the layers, one class for one responsibility, comments that explain why rather than what, and a test for every chess rule you add to the engine. Work on a branch, and have another member review your pull request before it's merged.
